@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE configuration
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <settings>
+        <setting name="logImpl" value="SLF4J"/>
+        <setting name="callSettersOnNulls" value="true"/>
+        <!-- 是否开启自动驼峰命名规则（camel case）映射，即从数据库列名 A_COLUMN 到属性名 aColumn 的类似映射 -->
+        <!-- 当resultTpye=map时，以上的配置无效 -->
+        <setting name="mapUnderscoreToCamelCase" value="true"/>
+    </settings>
+    <typeAliases>
+        <package name="com.dux.fastdfs.entity"/>
+    </typeAliases>
+    <!-- 配置mybatis的分页插件PageHelper -->
+    <!--<plugins>
+        &lt;!&ndash;&lt;!&ndash; com.github.pagehelper为PageHelper类所在包名 &ndash;&gt;
+        <plugin interceptor="com.github.pagehelper.PageInterceptor">
+            &lt;!&ndash; 设置数据库类型Oracle,Mysql,MariaDB,SQLite,Hsqldb,PostgreSQL六种数据库 &ndash;&gt;
+        </plugin>&ndash;&gt;
+    </plugins>-->
+
+</configuration>

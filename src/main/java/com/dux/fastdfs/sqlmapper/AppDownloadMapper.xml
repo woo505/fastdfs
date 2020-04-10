@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dux.fastdfs.sqlmapper.AppDownloadMapper">
+
+    <select id="getApp" resultType="com.dux.fastdfs.entity.AppEntity">
+        SELECT * FROM `app_download`
+        WHERE phone_type = #{phoneType}
+        AND app_type = #{appType}
+        ORDER BY `app_download`.`version` DESC,
+        app_download.`upload_time` DESC
+        LIMIT 0,1
+    </select>
+    
+    <insert id="saveApp" parameterType="com.dux.fastdfs.entity.AppEntity">
+        insert into app_download
+        (`app_type`, `version`, `upload_time`, `download_url`, `ico_url`, phone_type, app_name, app_size)
+        values (#{appType}, #{version}, now(), #{downloadUrl}, #{icoUrl}, #{phoneType}, #{appName}, #{appSize});
+    </insert>
+
+    <select id="getAppByAppTypeAndPhoneType" resultType="com.dux.fastdfs.entity.AppEntity">
+      select * from app_download
+      where app_type = #{appType}
+      and phone_type = #{phoneType}
+      ORDER BY `app_download`.`version` DESC,
+      app_download.`upload_time` DESC
+      limit 0,1
+    </select>
+
+</mapper>
