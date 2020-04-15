@@ -199,6 +199,16 @@ public class FileController {
         }
 
         if(phoneType.equals("1")){
+
+            try {
+                File ipaFile = MultipartFileToFile.multipartFileToFile(file);
+                FileIOUtil.transfer(ipaFile);
+            } catch (Exception e) {
+                e.printStackTrace();
+                throw new RuntimeException("文件转换失败");
+            }
+
+            System.out.println("<-------------- apk 文件处理 --------->");
             String andriodIco = null;
             AppEntity appEntity = new AppEntity();
             appEntity.setPhoneType(1L);
@@ -217,18 +227,23 @@ public class FileController {
                 }
                 jsonObject.put("apkPath", demo);
                 ApkInfo apkInfo = null;
+                System.out.println("<-------------- apk 文件解压开始 --------->");
                 IPAUtil.decompression(file1, PATH);
                 try {
+                    System.out.println("<-------------- apk 文件解压开始 --------->");
                     apkInfo = new ApkUtil().getApkInfo(demo);
+                    System.out.println("<-------------- apk 文件获取信息 --------->");
                     Map<String, String> applicationIcons = apkInfo.getApplicationIcons();
                     //获取安卓图片
                     String androidIcoPath = applicationIcons.get("application-icon-640");
-                    andriodIco = PATH + androidIcoPath;
+                    andriodIco = PATH + "andriodIco/" + androidIcoPath;
                     File androidIco = new File((andriodIco));
                     versionName = apkInfo.getVersionName();
                     if (androidIco != null && androidIco.getTotalSpace() > 0) {
                         //安卓图片上传
+                        System.out.println("<-------------- apk 文件开始上传 --------->");
                         FileIOUtil.transfer(androidIco, "andriodIco", versionName);
+                        System.out.println("<-------------- apk 文件结束上传 --------->");
                     }
                     androidFileName = androidIco.getName();
 
@@ -251,6 +266,7 @@ public class FileController {
             appEntity.setAppSize(fileSizeToM + "M");
             appEntity.setAppName(cfBundleDisplayName);
             appServiceImpl.saveApp(appEntity);
+            System.out.println("<-------------- apk 信息入库 --------->");
         }
 
         try {
@@ -299,21 +315,46 @@ public class FileController {
         AppEntity aiosAndroid = appServiceImpl.getAppByAppTypeAndPhoneType("1", 1L);
         if(aiosAndroid != null){
             list.add(aiosAndroid);
+        }else{
+            AppEntity aiosAndroidEntity = new AppEntity();
+            aiosAndroidEntity.setAppType("1");
+            aiosAndroidEntity.setPhoneType(1L);
+            aiosAndroidEntity.setAppName("aios");
+            list.add(aiosAndroidEntity);
         }
 
         AppEntity aiosIOS = appServiceImpl.getAppByAppTypeAndPhoneType("1", 2L);
+
         if(aiosIOS != null){
             list.add(aiosIOS);
+        }else{
+            AppEntity aiosIosEntity = new AppEntity();
+            aiosIosEntity.setAppType("1");
+            aiosIosEntity.setPhoneType(2L);
+            aiosIosEntity.setAppName("aios");
+            list.add(aiosIosEntity);
         }
 
         AppEntity aicAndroid = appServiceImpl.getAppByAppTypeAndPhoneType("2", 1L);
         if(aicAndroid != null){
             list.add(aicAndroid);
+        }else{
+            AppEntity aiosAndroidEntity = new AppEntity();
+            aiosAndroidEntity.setAppType("2");
+            aiosAndroidEntity.setPhoneType(1L);
+            aiosAndroidEntity.setAppName("aic");
+            list.add(aiosAndroidEntity);
         }
 
         AppEntity aicIOS = appServiceImpl.getAppByAppTypeAndPhoneType("2", 2L);
         if(aicIOS != null){
             list.add(aicIOS);
+        }else{
+            AppEntity aiosIOSEntity = new AppEntity();
+            aiosIOSEntity.setAppType("2");
+            aiosIOSEntity.setPhoneType(2L);
+            aiosIOSEntity.setAppName("aic");
+            list.add(aiosIOSEntity);
         }
         jsonObject.put("code", 200);
         jsonObject.put("appList", list);
