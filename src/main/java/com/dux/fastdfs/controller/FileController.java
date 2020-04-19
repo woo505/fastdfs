@@ -356,6 +356,51 @@ public class FileController {
             aiosIOSEntity.setAppName("aic");
             list.add(aiosIOSEntity);
         }
+
+        AppEntity aisAndroid = appServiceImpl.getAppByAppTypeAndPhoneType("3", 1L);
+        if(aisAndroid != null){
+            list.add(aisAndroid);
+        }else{
+            AppEntity aisAndroidEntity = new AppEntity();
+            aisAndroidEntity.setAppType("3");
+            aisAndroidEntity.setPhoneType(1L);
+            aisAndroidEntity.setAppName("ais");
+            list.add(aisAndroidEntity);
+        }
+
+        AppEntity aisIOS = appServiceImpl.getAppByAppTypeAndPhoneType("3", 2L);
+        if(aisIOS != null){
+            list.add(aisIOS);
+        }else{
+            AppEntity aisIOSEntity = new AppEntity();
+            aisIOSEntity.setAppType("3");
+            aisIOSEntity.setPhoneType(2L);
+            aisIOSEntity.setAppName("ais");
+            list.add(aisIOSEntity);
+        }
+
+        AppEntity aiminerAndroid = appServiceImpl.getAppByAppTypeAndPhoneType("4", 1L);
+        if(aiminerAndroid != null){
+            list.add(aiminerAndroid);
+        }else{
+            AppEntity aiminerAndroidEntity = new AppEntity();
+            aiminerAndroidEntity.setAppType("4");
+            aiminerAndroidEntity.setPhoneType(1L);
+            aiminerAndroidEntity.setAppName("aiminer");
+            list.add(aiminerAndroidEntity);
+        }
+
+        AppEntity aiminerIOS = appServiceImpl.getAppByAppTypeAndPhoneType("4", 2L);
+        if(aiminerIOS != null){
+            list.add(aiminerIOS);
+        }else{
+            AppEntity aiminerIOSEntity = new AppEntity();
+            aiminerIOSEntity.setAppType("4");
+            aiminerIOSEntity.setPhoneType(2L);
+            aiminerIOSEntity.setAppName("aiminer");
+            list.add(aiminerIOSEntity);
+        }
+
         jsonObject.put("code", 200);
         jsonObject.put("appList", list);
         return jsonObject;
