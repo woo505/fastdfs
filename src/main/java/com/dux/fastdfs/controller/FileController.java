@@ -5,42 +5,21 @@ import com.dux.fastdfs.config.ApkInfo;
 import com.dux.fastdfs.config.User;
 import com.dux.fastdfs.entity.AppEntity;
 import com.dux.fastdfs.service.AppServiceImpl;
-import com.dux.fastdfs.sqlmapper.AppDownloadMapper;
 import com.dux.fastdfs.utils.*;
-import com.github.tobato.fastdfs.domain.MataData;
-import com.github.tobato.fastdfs.domain.StorePath;
-import com.github.tobato.fastdfs.proto.storage.DownloadByteArray;
-import com.github.tobato.fastdfs.service.FastFileStorageClient;
-import com.mysql.cj.log.LogFactory;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.http.entity.ContentType;
-import org.apache.shiro.SecurityUtils;
-import org.apache.shiro.authc.AuthenticationException;
-import org.apache.shiro.authc.IncorrectCredentialsException;
-import org.apache.shiro.authc.UnknownAccountException;
-import org.apache.shiro.authc.UsernamePasswordToken;
-import org.apache.shiro.subject.Subject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.ModelAndView;
 
-import javax.activation.MimetypesFileTypeMap;
 import javax.annotation.Resource;
-import javax.servlet.ServletOutputStream;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.*;
-import java.net.URLEncoder;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import static com.dux.fastdfs.utils.IPAUtil.getIpaInfoMap;
 
@@ -54,7 +33,7 @@ public class FileController {
 
     private static final String PATH = "/home/www/temporary/";
 
-    private static final String PLIST_PREFIX = "https://file.bhshsk.top/";
+    private static final String PLIST_PREFIX = "https://file.aios-asc.com/";
 
     private static final String TEST_ICO = "E:\\Payload\\AIOS.app\\AppIcon20x20@3x.png";
 
@@ -64,20 +43,25 @@ public class FileController {
 
     private static final String BIG_ICO_PATH = "/home/www/temporary/Payload/AIOS.app/AppIcon60x60@3x.png";
 
-    private static final String PREFIX = "https://file.bhshsk.top/";
+    private static final String PREFIX = "https://file.aios-asc.com/";
 
-    private static final String Android_PATH = "https://file.bhshsk.top/app-release.apk";
+    private static final String Android_PATH = "https://file.aios-asc.com/app-release.apk";
 
     private static final String TEST_Android_ICO = "E:\\res\\mipmap-xxxhdpi-v4\\ic_launcher.png";
 
-    private static final String Android_ICO = "https://file.bhshsk.top/ic_launcher.png";
+    private static final String Android_ICO = "https://file.aios-asc.com/ic_launcher.png";
 
-    private static final String IOS_ICO = "https://file.bhshsk.top/AppIcon60x60@3x.png";
+    private static final String IOS_ICO = "https://file.aios-asc.com/AppIcon60x60@3x.png";
 
     private static final String IOS_ICO_PREFIX = "/home/www/temporary/Payload/";
 
+    public static final int DEFAULT_METHOD_EXPIRE_SECOND_DAY = 5;
+
     @Resource
     private AppServiceImpl appServiceImpl;
+
+    @Resource
+    private RedisTemplate redisTemplate;
 
 
     @GetMapping("/test1")
@@ -105,15 +89,31 @@ public class FileController {
      * @throws IOException
      */
     @PostMapping("/file/upload")
-    public JSONObject upload(HttpSession session, @RequestParam(required = true, value = "file") MultipartFile file, @RequestParam(required = true, value = "phoneType") String phoneType, @RequestParam(required = true, value = "appType") String appType) {
+    public JSONObject upload(@RequestHeader(value = "appToken", required = true) String appToken,
+                             @RequestParam(required = true, value = "file") MultipartFile file,
+                             @RequestParam(required = true, value = "phoneType") String phoneType,
+                             @RequestParam(required = true, value = "appType") String appType) {
 
 
         JSONObject jsonObject = new JSONObject();
-        if(session.getAttribute("user") == null){
-            jsonObject.put("code", 500);
+
+        if(StringUtils.isNotBlank(appType)){
+            if(!appType.equals("3") || !appType.equals("4")){
+                jsonObject.put("code", 500);
+                jsonObject.put("message", "上传错误");
+                return jsonObject;
+            }
+        }
+
+        ValueOperations valueOperations = redisTemplate.opsForValue();
+        Object sessionId = valueOperations.get(appToken);
+
+        if(org.springframework.util.ObjectUtils.isEmpty(sessionId)){
+            jsonObject.put("code", 401);
             jsonObject.put("message", "没有登录");
             return jsonObject;
         }
+
         // 设置文件信息
         String cfBundleIdentifier = null;
 
@@ -128,6 +128,8 @@ public class FileController {
         String appPath = null;
 
         String versionName = null;
+
+        long currentTime = System.currentTimeMillis();
 
         //如果是ipa的话，解压
         if(phoneType.equals("2")){
@@ -162,21 +164,21 @@ public class FileController {
                 String iconName = IPAUtil.getIconName(iosIcoName, appPath);
                 File ico = new File(IOS_ICO_PREFIX + appPath + "/" + iconName);
                 if (ico != null && ico.getTotalSpace() > 0) {
-                    FileIOUtil.transfer(ico, "ios", cfBundleVersion);
+                    FileIOUtil.transfer(ico, "ios", cfBundleVersion, currentTime);
                 }
                 //获取大图片
                 String bigIconName = IPAUtil.getIconName(iosBigIcoName, appPath);
                 File bigIco = new File((IOS_ICO_PREFIX + appPath + "/" + bigIconName));
                 if (bigIco != null && bigIco.getTotalSpace() > 0) {
                     //大图片上传
-                    FileIOUtil.transfer(bigIco, "ios", cfBundleVersion);
+                    FileIOUtil.transfer(bigIco, "ios", cfBundleVersion, currentTime);
                 }
 
 
                 //生成newplist文件
-                String newPlistPath = PATH + "ios/" + cfBundleVersion + "/"+ "manifest.plist";
+                String newPlistPath = PATH + "ios/" + cfBundleVersion + "/"+ currentTime + "manifest.plist";
                 IPAUtil.createPlist(cfBundleIdentifier, newPlistPath, cfBundleVersion, cfBundleDisplayName, PREFIX + "ios" + "/" + cfBundleVersion + "/" + iconName, PREFIX + "ios" + "/" + cfBundleVersion + "/" + bigIconName, PREFIX + "ios" + "/" + cfBundleVersion + "/" + file.getOriginalFilename());
-                String newPlistUrl = PLIST_PREFIX  + "ios/" + cfBundleVersion + "/" + "manifest.plist";
+                String newPlistUrl = PLIST_PREFIX  + "ios/" + cfBundleVersion + "/" +  currentTime + "manifest.plist";
 
                 //删除解压文件
                 IPAUtil.deleteDir(PATH + "Payload");
@@ -189,7 +191,7 @@ public class FileController {
                 appEntity.setVersion(cfBundleVersion);
                 appEntity.setAppType(appType);
                 appEntity.setAppName(cfBundleDisplayName);
-                appEntity.setIcoUrl(PLIST_PREFIX + "ios/" + cfBundleVersion + "/" + bigIconName);
+                appEntity.setIcoUrl(PLIST_PREFIX + "ios/" + cfBundleVersion + "/" + currentTime + bigIconName);
                 long fileSize = file.getSize();
                 long fileSizeToM = fileSize / 1024 /1024;
                 appEntity.setAppSize(fileSizeToM + "M");
@@ -236,13 +238,14 @@ public class FileController {
                     Map<String, String> applicationIcons = apkInfo.getApplicationIcons();
                     //获取安卓图片
                     String androidIcoPath = applicationIcons.get("application-icon-640");
-                    andriodIco = PATH + "andriodIco/" + androidIcoPath;
+                    System.out.println("<-------------- apk 图片路径" + androidIcoPath + "--------->");
+                    andriodIco = PATH  + androidIcoPath;
                     File androidIco = new File((andriodIco));
                     versionName = apkInfo.getVersionName();
                     if (androidIco != null && androidIco.getTotalSpace() > 0) {
                         //安卓图片上传
                         System.out.println("<-------------- apk 文件开始上传 --------->");
-                        FileIOUtil.transfer(androidIco, "andriodIco", versionName);
+                        FileIOUtil.transfer(androidIco, "andriodIco", versionName, currentTime);
                         System.out.println("<-------------- apk 文件结束上传 --------->");
                     }
                     androidFileName = androidIco.getName();
@@ -257,9 +260,9 @@ public class FileController {
             }
             //删除解压文件
             IPAUtil.deleteDir(PATH + "Payload");
-            appEntity.setDownloadUrl(PREFIX + "andriodIco/" + versionName + "/" + file.getOriginalFilename());
+            appEntity.setDownloadUrl(PREFIX + "andriodIco/" + versionName + "/" + currentTime + file.getOriginalFilename());
             appEntity.setVersion(versionName);
-            appEntity.setIcoUrl(PLIST_PREFIX + "andriodIco/"+ versionName + "/" + androidFileName);
+            appEntity.setIcoUrl(PLIST_PREFIX + "andriodIco/"+ versionName + "/" + currentTime + androidFileName);
             appEntity.setAppType(appType);
             long fileSize = file.getSize();
             long fileSizeToM = fileSize / 1024 /1024;
@@ -272,9 +275,9 @@ public class FileController {
         try {
             File ipaFile = MultipartFileToFile.multipartFileToFile(file);
             if("1".equals(phoneType)){
-                FileIOUtil.transfer(ipaFile, "andriodIco", versionName);
+                FileIOUtil.transfer(ipaFile, "andriodIco", versionName, currentTime);
             }else if("2".equals(phoneType)){
-                FileIOUtil.transfer(ipaFile, "ios", cfBundleVersion);
+                FileIOUtil.transfer(ipaFile, "ios", cfBundleVersion, currentTime);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -287,33 +290,61 @@ public class FileController {
     }
 
     @PostMapping(value = "/getApp")
-    public JSONObject getApp(@RequestParam(required = true, value = "appType") String appType) {
+    public JSONObject getApp(@RequestParam(required = true, value = "appName") String appName) {
         JSONObject jsonObject = new JSONObject();
         List<AppEntity> appList = new ArrayList<>();
-        AppEntity android = appServiceImpl.getApp(1L, appType);
-        AppEntity ios = appServiceImpl.getApp(2L, appType);
-        appList.add(android);
-        appList.add(ios);
-        jsonObject.put("code", 200);
-        jsonObject.put("android", android);
-        jsonObject.put("ios", ios);
+        String appType = null;
+        if(StringUtils.isNotBlank(appName)){
+            /*if("aios".equals(appName)){
+                appType = "1";
+            }
+            else if("aic".equals(appName)){
+                appType = "2";
+            }*/
+            if("aim".equals(appName)){
+                appType = "3";
+            }
+            else if("aiminer".equals(appName)){
+                appType = "4";
+            }
+            else{
+                appType = null;
+            }
+            if(StringUtils.isNotBlank(appType)){
+                AppEntity android = appServiceImpl.getApp(1L, appType);
+                AppEntity ios = appServiceImpl.getApp(2L, appType);
+                appList.add(android);
+                appList.add(ios);
+                jsonObject.put("code", 200);
+                jsonObject.put("android", android);
+                jsonObject.put("ios", ios);
+            }
+            else{
+                jsonObject.put("code", 500);
+                jsonObject.put("message", "不存在的项目");
+            }
+        }
         return jsonObject;
     }
 
     @PostMapping(value = "/getAllApp")
-    public JSONObject getAllApp(HttpSession httpSession){
+    public JSONObject getAllApp(@RequestHeader(value = "appToken", required = true) String appToken){
 
         JSONObject jsonObject = new JSONObject();
-        if(httpSession.getAttribute("user") == null){
-            jsonObject.put("code", 500);
+
+        ValueOperations valueOperations = redisTemplate.opsForValue();
+        Object sessionId = valueOperations.get(appToken);
+
+        if(org.springframework.util.ObjectUtils.isEmpty(sessionId)){
+            jsonObject.put("code", 401);
             jsonObject.put("message", "没有登录");
             return jsonObject;
         }
-
         List<AppEntity> list = new ArrayList<>();
 
-        AppEntity aiosAndroid = appServiceImpl.getAppByAppTypeAndPhoneType("1", 1L);
+        /*AppEntity aiosAndroid = appServiceImpl.getAppByAppTypeAndPhoneType("1", 1L);
         if(aiosAndroid != null){
+            aiosAndroid.setAppName("aios");
             list.add(aiosAndroid);
         }else{
             AppEntity aiosAndroidEntity = new AppEntity();
@@ -326,6 +357,7 @@ public class FileController {
         AppEntity aiosIOS = appServiceImpl.getAppByAppTypeAndPhoneType("1", 2L);
 
         if(aiosIOS != null){
+            aiosIOS.setAppName("aios");
             list.add(aiosIOS);
         }else{
             AppEntity aiosIosEntity = new AppEntity();
@@ -337,6 +369,7 @@ public class FileController {
 
         AppEntity aicAndroid = appServiceImpl.getAppByAppTypeAndPhoneType("2", 1L);
         if(aicAndroid != null){
+            aicAndroid.setAppName("aic");
             list.add(aicAndroid);
         }else{
             AppEntity aiosAndroidEntity = new AppEntity();
@@ -348,6 +381,7 @@ public class FileController {
 
         AppEntity aicIOS = appServiceImpl.getAppByAppTypeAndPhoneType("2", 2L);
         if(aicIOS != null){
+            aicIOS.setAppName("aic");
             list.add(aicIOS);
         }else{
             AppEntity aiosIOSEntity = new AppEntity();
@@ -355,32 +389,35 @@ public class FileController {
             aiosIOSEntity.setPhoneType(2L);
             aiosIOSEntity.setAppName("aic");
             list.add(aiosIOSEntity);
-        }
+        }*/
 
         AppEntity aisAndroid = appServiceImpl.getAppByAppTypeAndPhoneType("3", 1L);
         if(aisAndroid != null){
+            aisAndroid.setAppName("aim");
             list.add(aisAndroid);
         }else{
             AppEntity aisAndroidEntity = new AppEntity();
             aisAndroidEntity.setAppType("3");
             aisAndroidEntity.setPhoneType(1L);
-            aisAndroidEntity.setAppName("ais");
+            aisAndroidEntity.setAppName("aim");
             list.add(aisAndroidEntity);
         }
 
         AppEntity aisIOS = appServiceImpl.getAppByAppTypeAndPhoneType("3", 2L);
         if(aisIOS != null){
+            aisIOS.setAppName("aim");
             list.add(aisIOS);
         }else{
             AppEntity aisIOSEntity = new AppEntity();
             aisIOSEntity.setAppType("3");
             aisIOSEntity.setPhoneType(2L);
-            aisIOSEntity.setAppName("ais");
+            aisIOSEntity.setAppName("aim");
             list.add(aisIOSEntity);
         }
 
         AppEntity aiminerAndroid = appServiceImpl.getAppByAppTypeAndPhoneType("4", 1L);
         if(aiminerAndroid != null){
+            aiminerAndroid.setAppName("aiminer");
             list.add(aiminerAndroid);
         }else{
             AppEntity aiminerAndroidEntity = new AppEntity();
@@ -392,6 +429,7 @@ public class FileController {
 
         AppEntity aiminerIOS = appServiceImpl.getAppByAppTypeAndPhoneType("4", 2L);
         if(aiminerIOS != null){
+            aiminerIOS.setAppName("aiminer");
             list.add(aiminerIOS);
         }else{
             AppEntity aiminerIOSEntity = new AppEntity();
@@ -416,25 +454,37 @@ public class FileController {
         JSONObject jsonObject = new JSONObject();
         if(account.equals("amazingmq")&&password.equals("qqwwee")){
 
-            session.setAttribute("user", user);
+            ValueOperations valueOperations = redisTemplate.opsForValue();
+            String token = Util.getUuid();
+            System.out.println(token);
+            System.out.println(session.getId());
+            valueOperations.set(token, session.getId(),60 * 60 * 24, TimeUnit.SECONDS);
+            jsonObject.put("appToken", token);
+            //session.setAttribute("user", user);
             //2.创建User对象保存账号、密码
             //4.登陆成功跳转指定页面
             jsonObject.put("code", 200);
             jsonObject.put("message", "登录成功");
             return jsonObject;
         }else{
-            jsonObject.put("code", 500);
+            jsonObject.put("code", 401);
             jsonObject.put("message", "登录失败");
         }
         return jsonObject;
     }
 
     @RequestMapping(value = "/logout",method = RequestMethod.POST)
-    public JSONObject logout(HttpSession httpSession){
+    public JSONObject logout(@RequestHeader(value = "appToken", required = true) String appToken){
         JSONObject jsonObject = new JSONObject();
-        httpSession.removeAttribute("user");
-        jsonObject.put("code", 200);
-        jsonObject.put("message", "登出成功");
+        Boolean delete = redisTemplate.delete(appToken);
+        if(delete){
+            jsonObject.put("code", 200);
+            jsonObject.put("message", "登出成功");
+            return jsonObject;
+        }else{
+            jsonObject.put("code", 401);
+            jsonObject.put("message", "登出失败");
+        }
         return jsonObject;
     }
 
